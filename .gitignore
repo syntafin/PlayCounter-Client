@@ -1,0 +1,30 @@
+# Rust
+/target
+/src-tauri/target
+Cargo.lock
+
+# Node / Frontend
+/node_modules
+/dist
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local SQLite databases & Secrets
+*.db
+*.db-journal
+secret.conf
+api_enabled.txt
+tracker.pid
+running_games.json
+*.log
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
