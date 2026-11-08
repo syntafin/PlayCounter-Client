@@ -71,6 +71,12 @@ pub fn get_recent_sessions(limit: usize, state: State<'_, AppState>) -> Result<V
 }
 
 #[tauri::command]
+pub fn get_game_sessions(game: String, limit: Option<usize>, state: State<'_, AppState>) -> Result<Vec<GameSession>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.get_sessions_by_game(&game, limit.unwrap_or(100)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn get_tracker_status(state: State<'_, AppState>) -> Result<TrackerStatus, String> {
     let (active_game, active_duration_seconds) = {
         let active = state.active_game_info.lock().map_err(|e| e.to_string())?;

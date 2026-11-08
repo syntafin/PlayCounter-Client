@@ -344,6 +344,53 @@ impl Database {
         Ok(sessions)
     }
 
+    pub fn get_sessions_by_game(&self, game_key: &str, limit: usize) -> Result<Vec<GameSession>> {
+        let clean = game_key.trim();
+        let without_exe = clean.strip_suffix(".exe").unwrap_or(clean);
+        let with_exe = format!("{}.exe", without_exe);
+
+        let mut stmt = self.conn.prepare(
+            "SELECT id, game, start_time, last_heartbeat, end_time, duration_seconds, is_synced 
+             FROM sessions 
+             WHERE LOWER(game) = LOWER(?1) OR LOWER(game) = LOWER(?2) OR LOWER(game) = LOWER(?3)
+             ORDER BY id DESC 
+             LIMIT ?4;",
+        )?;
+
+        let sessions = stmt
+            .query_map(params![clean, without_exe, with_exe, limit as i64], |row| {
+                let start_str: String = row.get(2)?;
+                let hb_str: String = row.get(3)?;
+                let end_str: Option<String> = row.get(4)?;
+
+                let start_time = DateTime::parse_from_rfc3339(&start_str)
+                    .map(|d| d.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now());
+                let last_heartbeat = DateTime::parse_from_rfc3339(&hb_str)
+                    .map(|d| d.with_timezone(&Utc))
+                    .unwrap_or(start_time);
+                let end_time = end_str.and_then(|s| {
+                    DateTime::parse_from_rfc3339(&s)
+                        .map(|d| d.with_timezone(&Utc))
+                        .ok()
+                });
+
+                Ok(GameSession {
+                    id: Some(row.get(0)?),
+                    game: row.get(1)?,
+                    start_time,
+                    last_heartbeat,
+                    end_time,
+                    duration_seconds: row.get(5)?,
+                    is_synced: row.get(6)?,
+                })
+            })?
+            .filter_map(Result::ok)
+            .collect();
+
+        Ok(sessions)
+    }
+
     pub fn get_all_sessions(&self) -> Result<Vec<GameSession>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, game, start_time, last_heartbeat, end_time, duration_seconds, is_synced 

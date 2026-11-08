@@ -32,8 +32,22 @@ import {
   Download,
   Upload,
   HardDrive,
-  FolderOpen
+  FolderOpen,
+  Gamepad2,
+  ArrowLeft,
+  ExternalLink,
+  Image as ImageIcon,
+  Calendar,
+  Building2,
+  Tag,
+  FileCode,
+  Star,
+  Sparkles,
+  Layers,
+  Info,
+  Timer
 } from 'lucide-vue-next'
+import { gameMetadata, cleanExecutableName, type GameMetadata } from './lib/gameMetadata'
 
 interface GameStats {
   game: string
@@ -87,6 +101,39 @@ interface PlaytimeImportCandidate {
 }
 
 const activeTab = ref<'stats' | 'sessions' | 'settings'>('stats')
+
+export interface GameLibraryItem {
+  key: string
+  displayName: string
+  executable: string
+  total_seconds: number
+  formatted_playtime: string
+  cover_url: string | null
+  banner_url: string | null
+  genres: string[]
+  developer: string | null
+  publisher: string | null
+  release_date: string | null
+  description: string | null
+  short_description: string | null
+  screenshots: Array<{ id: string; thumbnail: string; full: string }>
+  steam_app_id: string | null
+  is_monitored: boolean
+  is_active: boolean
+  last_played_timestamp: string | null
+  session_count: number
+}
+
+// Library & Detail states
+const selectedGameForDetail = ref<GameLibraryItem | null>(null)
+const detailActiveTab = ref<'overview' | 'stats'>('overview')
+const gameSessionsForDetail = ref<GameSession[]>([])
+const isLoadingGameSessions = ref(false)
+const librarySearchQuery = ref('')
+const librarySort = ref<'playtime' | 'recent' | 'name'>('playtime')
+const libraryStatusFilter = ref<'all' | 'played' | 'monitored'>('all')
+const libraryGenreFilter = ref<string>('all')
+const previewScreenshot = ref<string | null>(null)
 const stats = ref<GameStats[]>([])
 const recentSessions = ref<GameSession[]>([])
 const status = ref<TrackerStatus>({
@@ -285,6 +332,330 @@ const totalOverallPlaytimeHours = computed(() => {
 const maxPlaytimeSeconds = computed(() => {
   if (stats.value.length === 0) return 1
   return Math.max(...stats.value.map(s => s.total_seconds))
+})
+
+function formatDurationLong(totalSeconds: number): string {
+  if (totalSeconds <= 0) return '0 Min.'
+  const days = Math.floor(totalSeconds / 86400)
+  const remainingAfterDays = totalSeconds % 86400
+  const hours = Math.floor(remainingAfterDays / 3600)
+  const mins = Math.floor((remainingAfterDays % 3600) / 60)
+
+  if (days > 0) {
+    return `${days} T. ${hours} Std.`
+  }
+  if (hours > 0) {
+    return `${hours} Std. ${mins} Min.`
+  }
+  return `${mins} Min.`
+}
+
+function formatRelativeTime(timestamp: string | null): string {
+  if (!timestamp) return t('library.never_played')
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (diffSec < 120) return 'vor wenigen Sekunden'
+  if (diffSec < 3600) return `vor ${Math.floor(diffSec / 60)} Minuten`
+  if (diffSec < 86400) {
+    const hrs = Math.floor(diffSec / 3600)
+    return hrs === 1 ? 'vor 1 Stunde' : `vor ${hrs} Stunden`
+  }
+  const days = Math.floor(diffSec / 86400)
+  if (days === 1) return 'Gestern'
+  if (days < 7) return `vor ${days} Tagen`
+  if (days < 30) {
+    const weeks = Math.floor(days / 7)
+    return weeks === 1 ? 'vor 1 Woche' : `vor ${weeks} Wochen`
+  }
+  const months = Math.floor(days / 30)
+  return months === 1 ? 'vor 1 Monat' : `vor ${months} Monaten`
+}
+
+function formatSessionDate(dtStr: string): string {
+  try {
+    const d = new Date(dtStr)
+    return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  } catch {
+    return dtStr
+  }
+}
+
+function formatSessionTimespan(startStr: string, endStr?: string): string {
+  try {
+    const start = new Date(startStr).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    if (endStr) {
+      const end = new Date(endStr).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+      return `${start} - ${end} Uhr`
+    }
+    return `ab ${start} Uhr`
+  } catch {
+    return startStr
+  }
+}
+
+async function openGameDetail(game: GameLibraryItem) {
+  selectedGameForDetail.value = game
+  detailActiveTab.value = 'overview'
+  isLoadingGameSessions.value = true
+  try {
+    const sessions = await invoke<GameSession[]>('get_game_sessions', {
+      game: game.executable || game.key,
+      limit: 100
+    })
+    gameSessionsForDetail.value = sessions
+  } catch (err) {
+    console.error('Failed to load game sessions', err)
+    gameSessionsForDetail.value = []
+  } finally {
+    isLoadingGameSessions.value = false
+  }
+}
+
+async function handleToggleWatchGame(executable: string) {
+  if (!executable) return
+  const isCurrentlyWatched = formConfig.value.watched_games.some(g => g.toLowerCase() === executable.toLowerCase())
+  if (isCurrentlyWatched) {
+    await handleRemoveSingleGame(executable)
+    if (selectedGameForDetail.value) {
+      selectedGameForDetail.value.is_monitored = false
+    }
+  } else {
+    try {
+      await invoke('add_custom_game', { game: executable })
+      formConfig.value.watched_games.push(executable)
+      if (selectedGameForDetail.value) {
+        selectedGameForDetail.value.is_monitored = true
+      }
+      toastMessage.value = {
+        type: 'success',
+        text: t('settings.file_selected_success', { game: gameMetadata.getDisplayName(executable) })
+      }
+    } catch (err: any) {
+      toastMessage.value = {
+        type: 'error',
+        text: String(err)
+      }
+    }
+  }
+}
+
+const libraryItems = computed<GameLibraryItem[]>(() => {
+  const map = new Map<string, GameLibraryItem>()
+
+  // 1. Initial metadata games
+  for (const meta of gameMetadata.getAllMetadata()) {
+    const key = (meta.process_name || meta.slug || meta.name).toLowerCase()
+    const exec = meta.process_name || (meta.slug ? `${meta.slug}.exe` : '')
+    const genres = meta.genres?.map(g => g.name) || []
+    const isMonitored = formConfig.value.watched_games.some(w => 
+      w.toLowerCase() === key || 
+      (meta.process_name && w.toLowerCase() === meta.process_name.toLowerCase()) ||
+      (meta.slug && w.toLowerCase() === meta.slug.toLowerCase()) ||
+      w.toLowerCase() === meta.name.toLowerCase()
+    )
+
+    map.set(key, {
+      key,
+      displayName: meta.name,
+      executable: exec,
+      total_seconds: 0,
+      formatted_playtime: '0 Min.',
+      cover_url: gameMetadata.getCoverUrl(meta, formConfig.value.api_base_url),
+      banner_url: gameMetadata.getBannerUrl(meta, formConfig.value.api_base_url),
+      genres,
+      developer: meta.developer || null,
+      publisher: meta.publisher || null,
+      release_date: meta.release_date ? meta.release_date.split('T')[0] : null,
+      description: meta.description || meta.short_description || null,
+      short_description: meta.short_description || null,
+      screenshots: meta.screenshots || [],
+      steam_app_id: meta.steam_app_id || null,
+      is_monitored: isMonitored,
+      is_active: Boolean(status.value.active_game && (status.value.active_game.toLowerCase() === key || (meta.process_name && status.value.active_game.toLowerCase() === meta.process_name.toLowerCase()))),
+      last_played_timestamp: null,
+      session_count: 0,
+    })
+  }
+
+  // 2. Merge stats from SQLite
+  for (const s of stats.value) {
+    const meta = gameMetadata.findGame(s.game)
+    const key = (meta?.process_name || meta?.slug || s.game).toLowerCase()
+    let item = map.get(key)
+    if (!item) {
+      const displayName = gameMetadata.getDisplayName(s.game)
+      const isMonitored = formConfig.value.watched_games.some(w => w.toLowerCase() === s.game.toLowerCase())
+      item = {
+        key,
+        displayName,
+        executable: s.game,
+        total_seconds: s.total_seconds,
+        formatted_playtime: formatDurationLong(s.total_seconds),
+        cover_url: meta ? gameMetadata.getCoverUrl(meta, formConfig.value.api_base_url) : null,
+        banner_url: meta ? gameMetadata.getBannerUrl(meta, formConfig.value.api_base_url) : null,
+        genres: meta?.genres?.map(g => g.name) || [],
+        developer: meta?.developer || null,
+        publisher: meta?.publisher || null,
+        release_date: meta?.release_date ? meta.release_date.split('T')[0] : null,
+        description: meta?.description || meta?.short_description || null,
+        short_description: meta?.short_description || null,
+        screenshots: meta?.screenshots || [],
+        steam_app_id: meta?.steam_app_id || null,
+        is_monitored: isMonitored,
+        is_active: Boolean(status.value.active_game && status.value.active_game.toLowerCase() === s.game.toLowerCase()),
+        last_played_timestamp: null,
+        session_count: 0,
+      }
+      map.set(key, item)
+    } else {
+      item.total_seconds = s.total_seconds
+      item.formatted_playtime = formatDurationLong(s.total_seconds)
+    }
+  }
+
+  // 3. Ensure watched games are present
+  for (const w of formConfig.value.watched_games) {
+    const meta = gameMetadata.findGame(w)
+    const key = (meta?.process_name || meta?.slug || w).toLowerCase()
+    let item = map.get(key)
+    if (!item) {
+      const displayName = gameMetadata.getDisplayName(w)
+      item = {
+        key,
+        displayName,
+        executable: w,
+        total_seconds: 0,
+        formatted_playtime: '0 Min.',
+        cover_url: meta ? gameMetadata.getCoverUrl(meta, formConfig.value.api_base_url) : null,
+        banner_url: meta ? gameMetadata.getBannerUrl(meta, formConfig.value.api_base_url) : null,
+        genres: meta?.genres?.map(g => g.name) || [],
+        developer: meta?.developer || null,
+        publisher: meta?.publisher || null,
+        release_date: meta?.release_date ? meta.release_date.split('T')[0] : null,
+        description: meta?.description || meta?.short_description || null,
+        short_description: meta?.short_description || null,
+        screenshots: meta?.screenshots || [],
+        steam_app_id: meta?.steam_app_id || null,
+        is_monitored: true,
+        is_active: Boolean(status.value.active_game && status.value.active_game.toLowerCase() === w.toLowerCase()),
+        last_played_timestamp: null,
+        session_count: 0,
+      }
+      map.set(key, item)
+    } else {
+      item.is_monitored = true
+    }
+  }
+
+  // 4. Update last_played_timestamp and session count from recentSessions
+  for (const sess of recentSessions.value) {
+    for (const item of map.values()) {
+      if (
+        sess.game.toLowerCase() === item.key ||
+        sess.game.toLowerCase() === item.executable.toLowerCase() ||
+        sess.game.toLowerCase() === item.displayName.toLowerCase()
+      ) {
+        if (!item.last_played_timestamp) {
+          item.last_played_timestamp = sess.end_time || sess.last_heartbeat || sess.start_time
+        }
+        item.session_count++
+      }
+    }
+  }
+
+  return Array.from(map.values())
+})
+
+const availableGenres = computed(() => {
+  const set = new Set<string>()
+  for (const item of libraryItems.value) {
+    for (const g of item.genres) {
+      if (g) set.add(g)
+    }
+  }
+  return Array.from(set).sort()
+})
+
+const filteredLibraryGames = computed(() => {
+  let list = libraryItems.value
+
+  if (librarySearchQuery.value.trim()) {
+    const q = librarySearchQuery.value.toLowerCase().trim()
+    list = list.filter(g => 
+      g.displayName.toLowerCase().includes(q) || 
+      g.executable.toLowerCase().includes(q) ||
+      (g.developer && g.developer.toLowerCase().includes(q)) ||
+      g.genres.some(genre => genre.toLowerCase().includes(q))
+    )
+  }
+
+  if (libraryStatusFilter.value === 'played') {
+    list = list.filter(g => g.total_seconds > 0)
+  } else if (libraryStatusFilter.value === 'monitored') {
+    list = list.filter(g => g.is_monitored)
+  }
+
+  if (libraryGenreFilter.value !== 'all') {
+    list = list.filter(g => g.genres.some(genre => genre.toLowerCase() === libraryGenreFilter.value.toLowerCase()))
+  }
+
+  return [...list].sort((a, b) => {
+    if (a.is_active && !b.is_active) return -1
+    if (!a.is_active && b.is_active) return 1
+
+    if (librarySort.value === 'playtime') {
+      return b.total_seconds - a.total_seconds
+    }
+    if (librarySort.value === 'recent') {
+      const timeA = a.last_played_timestamp ? new Date(a.last_played_timestamp).getTime() : 0
+      const timeB = b.last_played_timestamp ? new Date(b.last_played_timestamp).getTime() : 0
+      return timeB - timeA
+    }
+    if (librarySort.value === 'name') {
+      return a.displayName.localeCompare(b.displayName)
+    }
+    return 0
+  })
+})
+
+const detailStats = computed(() => {
+  if (!selectedGameForDetail.value) {
+    return {
+      totalPlaytime: '0 Min.',
+      totalHours: 0,
+      lastSessionDuration: '—',
+      avgSessionDuration: '—',
+      totalSessionsCount: 0,
+      lastPlayedDate: '—',
+    }
+  }
+
+  const game = selectedGameForDetail.value
+  const sessions = gameSessionsForDetail.value
+
+  const totalSec = game.total_seconds || sessions.reduce((acc, s) => acc + s.duration_seconds, 0)
+  const totalHours = Math.round(totalSec / 3600)
+  const totalSessionsCount = sessions.length
+
+  const lastSessionDuration = sessions.length > 0 && sessions[0].duration_seconds > 0
+    ? formatDurationLong(sessions[0].duration_seconds)
+    : '—'
+
+  const avgSeconds = totalSessionsCount > 0 ? Math.round(totalSec / totalSessionsCount) : 0
+  const avgSessionDuration = avgSeconds > 0 ? formatDurationLong(avgSeconds) : '—'
+
+  const lastPlayedDate = game.last_played_timestamp ? formatRelativeTime(game.last_played_timestamp) : t('library.never_played')
+
+  return {
+    totalPlaytime: formatDurationLong(totalSec),
+    totalHours,
+    lastSessionDuration,
+    avgSessionDuration,
+    totalSessionsCount,
+    lastPlayedDate,
+  }
 })
 
 const filteredWatchedGames = computed(() => {
@@ -728,10 +1099,10 @@ onUnmounted(() => {
       <!-- Tabs on the Left -->
       <nav class="flex items-center gap-1">
         <button 
-          @click="activeTab = 'stats'"
+          @click="activeTab = 'stats'; selectedGameForDetail = null"
           class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition"
           :class="activeTab === 'stats' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'">
-          <BarChart3 class="w-3.5 h-3.5" />
+          <Gamepad2 class="w-3.5 h-3.5" />
           <span>{{ t('nav.stats') }}</span>
         </button>
 
@@ -763,7 +1134,7 @@ onUnmounted(() => {
             <span class="relative inline-flex rounded-full h-2 w-2" :class="status.active_game ? 'bg-emerald-500' : 'bg-slate-500'"></span>
           </span>
           <span class="font-medium text-[11px]">
-            {{ status.active_game ? t('status.tracking', { game: status.active_game }) : t('status.idle') }}
+            {{ status.active_game ? t('status.tracking', { game: gameMetadata.getDisplayName(status.active_game) }) : t('status.idle') }}
           </span>
         </div>
 
@@ -788,8 +1159,13 @@ onUnmounted(() => {
           <div class="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">
             {{ t('active.game_running') }}
           </div>
-          <div class="text-xs font-bold text-white">
-            {{ status.active_game }}
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-white">
+              {{ gameMetadata.getDisplayName(status.active_game) }}
+            </span>
+            <span class="text-[10px] font-mono text-emerald-400/80 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/20">
+              {{ status.active_game }}
+            </span>
           </div>
         </div>
       </div>
@@ -816,53 +1192,431 @@ onUnmounted(() => {
 
     <!-- Main Content Area -->
     <main class="flex-1 overflow-y-auto p-5">
-      <!-- 1. STATS TAB -->
-      <div v-if="activeTab === 'stats'" class="space-y-5">
-        <div class="grid grid-cols-3 gap-3">
-          <div class="p-3.5 rounded-lg bg-slate-900/60 border border-slate-800">
-            <span class="text-xs text-slate-400">{{ t('stats.total_time') }}</span>
-            <div class="mt-1 text-xl font-bold text-white">
-              {{ totalOverallPlaytimeHours }} <span class="text-xs font-normal text-slate-400">{{ t('stats.hours') }}</span>
+      <!-- 1. SPIELEBIBLIOTHEK & DETAILANSICHT (Matches User Website Screenshots 2, 3 & 4) -->
+      <div v-if="activeTab === 'stats'" class="space-y-4">
+        
+        <!-- DETAIL PAGE VIEW (Screenshots 3 & 4) -->
+        <div v-if="selectedGameForDetail" class="space-y-4">
+          <!-- Back button & Detail Header -->
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-3">
+              <button 
+                @click="selectedGameForDetail = null"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 transition">
+                <ArrowLeft class="w-3.5 h-3.5" />
+                <span>{{ t('detail.back') }}</span>
+              </button>
+              <div>
+                <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                  <span>{{ selectedGameForDetail.displayName }}</span>
+                  <span 
+                    v-if="selectedGameForDetail.is_active"
+                    class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    {{ t('library.now_playing') }}
+                  </span>
+                </h1>
+                <div class="text-xs font-mono text-slate-400 mt-0.5">
+                  {{ selectedGameForDetail.executable }}
+                </div>
+              </div>
             </div>
+
+            <!-- Action: Toggle Monitoring -->
+            <button 
+              @click="handleToggleWatchGame(selectedGameForDetail.executable)"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition"
+              :class="selectedGameForDetail.is_monitored 
+                ? 'bg-indigo-950/60 text-indigo-300 border-indigo-500/40 hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-500/40' 
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'">
+              <Star class="w-3.5 h-3.5" :class="{ 'fill-current': selectedGameForDetail.is_monitored }" />
+              <span>{{ selectedGameForDetail.is_monitored ? t('detail.watching_active') : t('detail.watching_inactive') }}</span>
+            </button>
           </div>
-          <div class="p-3.5 rounded-lg bg-slate-900/60 border border-slate-800">
-            <span class="text-xs text-slate-400">{{ t('stats.tracked_games') }}</span>
-            <div class="mt-1 text-xl font-bold text-white">
-              {{ stats.length }}
-            </div>
-          </div>
-          <div class="p-3.5 rounded-lg bg-slate-900/60 border border-slate-800">
-            <span class="text-xs text-slate-400">{{ t('stats.pending_events') }}</span>
-            <div class="mt-1 text-xl font-bold flex items-baseline gap-2" :class="status.pending_events_count > 0 ? 'text-amber-400' : 'text-emerald-400'">
-              {{ status.pending_events_count }}
-              <span class="text-[11px] font-normal text-slate-400">
-                {{ status.pending_events_count > 0 ? t('stats.waiting_sync') : t('stats.all_synced') }}
+
+          <!-- Detail Navigation Tabs -->
+          <div class="flex items-center gap-2 border-b border-slate-800 pb-2">
+            <button 
+              @click="detailActiveTab = 'overview'"
+              class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition"
+              :class="detailActiveTab === 'overview' ? 'bg-indigo-600 text-white font-semibold shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'">
+              <Info class="w-3.5 h-3.5" />
+              <span>{{ t('detail.tab_overview') }}</span>
+            </button>
+            <button 
+              @click="detailActiveTab = 'stats'"
+              class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition"
+              :class="detailActiveTab === 'stats' ? 'bg-indigo-600 text-white font-semibold shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'">
+              <BarChart3 class="w-3.5 h-3.5" />
+              <span>{{ t('detail.tab_stats') }}</span>
+              <span v-if="gameSessionsForDetail.length > 0" class="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-500/30">
+                {{ gameSessionsForDetail.length }}
               </span>
+            </button>
+          </div>
+
+          <!-- Grid: Main Left, Sidebar Right (Screenshots 3 & 4) -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            
+            <!-- Left Main Column -->
+            <div class="lg:col-span-2 space-y-4">
+              
+              <!-- Tab 1: Overview (Screenshot 3) -->
+              <div v-if="detailActiveTab === 'overview'" class="space-y-4">
+                <!-- Description Card -->
+                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2.5">
+                  <h2 class="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-2">
+                    <Info class="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{{ t('detail.about_title') }}</span>
+                  </h2>
+                  <p class="text-xs text-slate-300 leading-relaxed whitespace-pre-line">
+                    {{ selectedGameForDetail.description || selectedGameForDetail.short_description || 'Keine zusätzliche Spielbeschreibung hinterlegt.' }}
+                  </p>
+                </div>
+
+                <!-- Screenshots Gallery (Screenshot 3) -->
+                <div v-if="selectedGameForDetail.screenshots && selectedGameForDetail.screenshots.length > 0" class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                  <h2 class="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-2">
+                    <ImageIcon class="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{{ t('detail.screenshots_title') }}</span>
+                  </h2>
+                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    <div 
+                      v-for="sc in selectedGameForDetail.screenshots.slice(0, 6)" 
+                      :key="sc.id"
+                      @click="previewScreenshot = sc.full || sc.thumbnail"
+                      class="rounded-lg overflow-hidden border border-slate-800 bg-slate-950 aspect-video group cursor-pointer relative shadow">
+                      <img 
+                        :src="sc.thumbnail || sc.full" 
+                        loading="lazy"
+                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tab 2: Statistics & Session History (Screenshot 4) -->
+              <div v-if="detailActiveTab === 'stats'" class="space-y-4">
+                <!-- 4 Top Metric Cards (Screenshot 4) -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div class="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">
+                    <div class="text-[11px] text-slate-400">{{ t('detail.total_playtime') }}</div>
+                    <div class="mt-1 text-base sm:text-lg font-bold text-white">{{ detailStats.totalPlaytime }}</div>
+                    <div class="text-[10px] text-slate-500 mt-0.5">{{ detailStats.totalHours }} {{ t('stats.hours') }}</div>
+                  </div>
+
+                  <div class="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">
+                    <div class="text-[11px] text-slate-400">{{ t('detail.last_session') }}</div>
+                    <div class="mt-1 text-base sm:text-lg font-bold text-white">{{ detailStats.lastSessionDuration }}</div>
+                    <div class="text-[10px] text-slate-500 mt-0.5">{{ detailStats.lastPlayedDate }}</div>
+                  </div>
+
+                  <div class="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">
+                    <div class="text-[11px] text-slate-400">{{ t('detail.avg_session') }}</div>
+                    <div class="mt-1 text-base sm:text-lg font-bold text-white">{{ detailStats.avgSessionDuration }}</div>
+                    <div class="text-[10px] text-slate-500 mt-0.5">pro Sitzung</div>
+                  </div>
+
+                  <div class="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">
+                    <div class="text-[11px] text-slate-400">{{ t('detail.session_count') }}</div>
+                    <div class="mt-1 text-base sm:text-lg font-bold text-white">{{ detailStats.totalSessionsCount }}</div>
+                    <div class="text-[10px] text-slate-500 mt-0.5">Erfasste Sitzungen</div>
+                  </div>
+                </div>
+
+                <!-- Session History Card (Screenshot 4) -->
+                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                  <h2 class="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-2">
+                    <History class="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{{ t('detail.history_title') }}</span>
+                  </h2>
+
+                  <div v-if="isLoadingGameSessions" class="py-8 text-center text-slate-500 text-xs">
+                    Lade Sitzungen...
+                  </div>
+
+                  <div v-else-if="gameSessionsForDetail.length === 0" class="py-8 text-center text-slate-500 text-xs">
+                    {{ t('detail.no_sessions_yet') }}
+                  </div>
+
+                  <div v-else class="rounded-lg border border-slate-800/80 overflow-hidden bg-slate-950/40">
+                    <table class="w-full text-left text-xs">
+                      <thead class="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+                        <tr>
+                          <th class="py-2 px-3">{{ t('detail.date_col') }}</th>
+                          <th class="py-2 px-3">{{ t('detail.timespan_col') }}</th>
+                          <th class="py-2 px-3 text-right">{{ t('detail.duration_col') }}</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-800/60">
+                        <tr v-for="sess in gameSessionsForDetail" :key="sess.id" class="hover:bg-slate-800/30 transition">
+                          <td class="py-2 px-3 text-slate-300 font-medium">{{ formatSessionDate(sess.start_time) }}</td>
+                          <td class="py-2 px-3 text-slate-400 font-mono text-[11px]">{{ formatSessionTimespan(sess.start_time, sess.end_time) }}</td>
+                          <td class="py-2 px-3 text-right">
+                            <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-950/60 text-indigo-300 border border-indigo-500/20">
+                              {{ formatDurationLong(sess.duration_seconds) }}
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Sidebar Column (Screenshots 3 & 4) -->
+            <div class="space-y-4">
+              <!-- Game Poster -->
+              <div class="rounded-xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl aspect-[3/4] relative">
+                <img 
+                  v-if="selectedGameForDetail.cover_url" 
+                  :src="selectedGameForDetail.cover_url" 
+                  :alt="selectedGameForDetail.displayName"
+                  class="w-full h-full object-cover" 
+                  @error="(e: any) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }" />
+                <div 
+                  :style="{ display: selectedGameForDetail.cover_url ? 'none' : 'flex' }"
+                  class="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-indigo-950 to-slate-900 text-slate-500">
+                  <Gamepad2 class="w-16 h-16 text-indigo-400/50 mb-2" />
+                  <span class="text-sm font-bold text-white">{{ selectedGameForDetail.displayName }}</span>
+                </div>
+              </div>
+
+              <!-- Metadata Card (Screenshots 3 & 4) -->
+              <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3 text-xs">
+                <h3 class="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Building2 class="w-3.5 h-3.5 text-indigo-400" />
+                  <span>{{ t('detail.metadata_title') }}</span>
+                </h3>
+
+                <div class="space-y-2 pt-1 divide-y divide-slate-800/60">
+                  <div v-if="selectedGameForDetail.release_date" class="pt-2 flex justify-between">
+                    <span class="text-slate-400">{{ t('detail.release_date') }}</span>
+                    <span class="font-medium text-slate-200">{{ selectedGameForDetail.release_date }}</span>
+                  </div>
+
+                  <div v-if="selectedGameForDetail.developer" class="pt-2 flex justify-between">
+                    <span class="text-slate-400">{{ t('detail.developer') }}</span>
+                    <span class="font-medium text-slate-200 text-right">{{ selectedGameForDetail.developer }}</span>
+                  </div>
+
+                  <div v-if="selectedGameForDetail.publisher" class="pt-2 flex justify-between">
+                    <span class="text-slate-400">{{ t('detail.publisher') }}</span>
+                    <span class="font-medium text-slate-200 text-right">{{ selectedGameForDetail.publisher }}</span>
+                  </div>
+
+                  <div v-if="selectedGameForDetail.steam_app_id" class="pt-2 flex justify-between items-center">
+                    <span class="text-slate-400">{{ t('detail.steam_app_id') }}</span>
+                    <span class="font-mono text-indigo-400 bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-500/20">
+                      {{ selectedGameForDetail.steam_app_id }}
+                    </span>
+                  </div>
+
+                  <div class="pt-2 flex justify-between items-center">
+                    <span class="text-slate-400">{{ t('detail.process_name') }}</span>
+                    <span class="font-mono text-slate-300 text-[11px] truncate max-w-[150px]">
+                      {{ selectedGameForDetail.executable }}
+                    </span>
+                  </div>
+
+                  <div v-if="selectedGameForDetail.genres && selectedGameForDetail.genres.length > 0" class="pt-2 space-y-1.5">
+                    <span class="text-slate-400 block">{{ t('detail.genres_tags') }}</span>
+                    <div class="flex flex-wrap gap-1">
+                      <span 
+                        v-for="genre in selectedGameForDetail.genres" 
+                        :key="genre" 
+                        class="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 border border-slate-700/60">
+                        {{ genre }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quick Stats Summary Box -->
+              <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2.5 text-xs">
+                <h3 class="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Clock class="w-3.5 h-3.5 text-indigo-400" />
+                  <span>{{ t('detail.stats_summary') }}</span>
+                </h3>
+                <div class="space-y-1.5 pt-1">
+                  <div class="flex justify-between">
+                    <span class="text-slate-400">{{ t('detail.total_playtime') }}</span>
+                    <span class="font-bold text-indigo-300">{{ detailStats.totalPlaytime }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-slate-400">{{ t('detail.last_session') }}</span>
+                    <span class="text-slate-200">{{ detailStats.lastSessionDuration }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-slate-400">{{ t('library.last_played') }}</span>
+                    <span class="text-slate-400">{{ detailStats.lastPlayedDate }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Top Played Games List -->
-        <div class="p-4 rounded-lg bg-slate-900/60 border border-slate-800 space-y-3">
-          <div class="flex items-center justify-between">
-            <h2 class="text-xs font-semibold text-white uppercase tracking-wider">{{ t('stats.top_games') }}</h2>
-            <span class="text-[11px] text-slate-400">{{ t('stats.local_db') }}</span>
-          </div>
-
-          <div v-if="stats.length === 0" class="py-8 text-center text-slate-500 text-xs">
-            {{ t('stats.no_data') }}
-          </div>
-
-          <div v-else class="space-y-2.5">
-            <div v-for="item in stats" :key="item.game" class="space-y-1">
-              <div class="flex justify-between text-xs">
-                <span class="font-medium text-slate-200">{{ item.game }}</span>
-                <span class="text-slate-400 font-mono">{{ item.formatted_time }}</span>
+        <!-- LIBRARY GRID VIEW (Screenshot 2) -->
+        <div v-else class="space-y-4">
+          <!-- Top Stats Bar -->
+          <div class="grid grid-cols-3 gap-3">
+            <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span class="text-xs text-slate-400">{{ t('stats.total_time') }}</span>
+              <div class="mt-1 text-xl font-bold text-white">
+                {{ totalOverallPlaytimeHours }} <span class="text-xs font-normal text-slate-400">{{ t('stats.hours') }}</span>
               </div>
-              <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+            </div>
+            <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span class="text-xs text-slate-400">{{ t('stats.tracked_games') }}</span>
+              <div class="mt-1 text-xl font-bold text-white">
+                {{ libraryItems.length }}
+              </div>
+            </div>
+            <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <span class="text-xs text-slate-400">{{ t('stats.pending_events') }}</span>
+              <div class="mt-1 text-xl font-bold flex items-baseline gap-2" :class="status.pending_events_count > 0 ? 'text-amber-400' : 'text-emerald-400'">
+                {{ status.pending_events_count }}
+                <span class="text-[11px] font-normal text-slate-400">
+                  {{ status.pending_events_count > 0 ? t('stats.waiting_sync') : t('stats.all_synced') }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Library Filter Toolbar (Screenshot 2) -->
+          <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+            <!-- Search Input -->
+            <div class="relative flex-1 min-w-[200px]">
+              <Search class="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+              <input 
+                v-model="librarySearchQuery"
+                type="text" 
+                :placeholder="t('library.search_placeholder')"
+                class="w-full pl-9 pr-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500" />
+            </div>
+
+            <!-- Sort & Filters -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <!-- Sort Select -->
+              <div class="flex items-center gap-1.5 text-xs text-slate-400">
+                <span>{{ t('library.sort_label') }}:</span>
+                <select 
+                  v-model="librarySort"
+                  class="bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500">
+                  <option value="playtime">{{ t('library.sort_playtime') }}</option>
+                  <option value="recent">{{ t('library.sort_recent') }}</option>
+                  <option value="name">{{ t('library.sort_name') }}</option>
+                </select>
+              </div>
+
+              <!-- Status Filter Select -->
+              <div class="flex items-center gap-1.5 text-xs text-slate-400">
+                <span>{{ t('library.filter_status') }}:</span>
+                <select 
+                  v-model="libraryStatusFilter"
+                  class="bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500">
+                  <option value="all">{{ t('library.filter_all') }}</option>
+                  <option value="played">{{ t('library.filter_played') }}</option>
+                  <option value="monitored">{{ t('library.filter_monitored') }}</option>
+                </select>
+              </div>
+
+              <!-- Genre Filter Select -->
+              <div v-if="availableGenres.length > 0" class="flex items-center gap-1.5 text-xs text-slate-400">
+                <span>{{ t('library.filter_genre') }}:</span>
+                <select 
+                  v-model="libraryGenreFilter"
+                  class="bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500">
+                  <option value="all">{{ t('library.filter_all_genres') }}</option>
+                  <option v-for="g in availableGenres" :key="g" :value="g">{{ g }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty state -->
+          <div v-if="filteredLibraryGames.length === 0" class="py-12 text-center text-slate-500 text-xs bg-slate-900/40 rounded-xl border border-slate-800">
+            {{ t('library.no_games_found') }}
+          </div>
+
+          <!-- Game Cards Grid (Screenshot 2) -->
+          <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+            <div 
+              v-for="game in filteredLibraryGames" 
+              :key="game.key"
+              @click="openGameDetail(game)"
+              class="group relative flex gap-3.5 p-3 rounded-xl bg-slate-900/60 hover:bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-indigo-500/10 hover:shadow-lg">
+              
+              <!-- Game Poster / Cover -->
+              <div class="w-20 h-28 sm:w-24 sm:h-32 shrink-0 rounded-lg overflow-hidden bg-slate-800 border border-slate-700/60 relative">
+                <img 
+                  v-if="game.cover_url" 
+                  :src="game.cover_url" 
+                  :alt="game.displayName"
+                  loading="lazy"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                  @error="(e: any) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }" />
                 <div 
-                  class="h-full bg-indigo-500 rounded-full transition-all duration-300"
-                  :style="{ width: `${Math.max(3, (item.total_seconds / maxPlaytimeSeconds) * 100)}%` }">
+                  :style="{ display: game.cover_url ? 'none' : 'flex' }"
+                  class="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-gradient-to-br from-indigo-950/60 to-slate-900 text-slate-500">
+                  <Gamepad2 class="w-7 h-7 text-indigo-400/60 mb-1" />
+                  <span class="text-[9px] font-medium leading-tight text-slate-400 line-clamp-2">{{ game.displayName }}</span>
+                </div>
+
+                <!-- Active live badge on poster -->
+                <div v-if="game.is_active" class="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[9px] font-bold shadow-md animate-pulse">
+                  <span class="h-1.5 w-1.5 rounded-full bg-slate-950"></span>
+                  <span>LIVE</span>
+                </div>
+              </div>
+
+              <!-- Game Info -->
+              <div class="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                <div>
+                  <!-- Title & Badges -->
+                  <div class="flex items-start justify-between gap-1.5">
+                    <h3 class="text-xs sm:text-sm font-bold text-white group-hover:text-indigo-300 transition truncate">
+                      {{ game.displayName }}
+                    </h3>
+                    <span 
+                      v-if="game.is_monitored" 
+                      class="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-indigo-950/80 text-indigo-300 border border-indigo-500/30 font-medium">
+                      {{ t('detail.watching_active') }}
+                    </span>
+                  </div>
+
+                  <!-- Process name -->
+                  <div class="text-[10px] font-mono text-slate-500 truncate mt-0.5">
+                    {{ game.executable }}
+                  </div>
+
+                  <!-- Genres Tags -->
+                  <div v-if="game.genres && game.genres.length > 0" class="flex flex-wrap gap-1 mt-1.5">
+                    <span 
+                      v-for="genre in game.genres.slice(0, 3)" 
+                      :key="genre" 
+                      class="px-1.5 py-0.5 rounded bg-slate-800/80 text-[10px] text-slate-300">
+                      {{ genre }}
+                    </span>
+                  </div>
+
+                  <!-- Description snippet -->
+                  <p v-if="game.short_description || game.description" class="text-[11px] text-slate-400 line-clamp-2 mt-1.5 leading-relaxed">
+                    {{ game.short_description || game.description }}
+                  </p>
+                </div>
+
+                <!-- Footer: Playtime & Last Played (Screenshot 2) -->
+                <div class="flex items-center justify-between pt-2 border-t border-slate-800/60 mt-2 text-xs">
+                  <div class="flex items-center gap-1.5 font-semibold text-indigo-300 bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-500/20 text-[11px]">
+                    <Clock class="w-3 h-3 text-indigo-400" />
+                    <span>{{ game.formatted_playtime }}</span>
+                  </div>
+                  <div class="text-[10px] text-slate-400 flex items-center gap-1">
+                    <span>{{ formatRelativeTime(game.last_played_timestamp) }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -894,7 +1648,10 @@ onUnmounted(() => {
                 </td>
               </tr>
               <tr v-for="s in recentSessions" :key="s.id" class="hover:bg-slate-800/30 transition">
-                <td class="py-2.5 px-3.5 font-medium text-slate-200">{{ s.game }}</td>
+                <td class="py-2.5 px-3.5">
+                  <div class="font-medium text-slate-200">{{ gameMetadata.getDisplayName(s.game) }}</div>
+                  <div class="text-[10px] font-mono text-slate-500">{{ s.game }}</div>
+                </td>
                 <td class="py-2.5 px-3.5 text-slate-400">{{ formatDate(s.start_time) }}</td>
                 <td class="py-2.5 px-3.5 font-mono text-slate-300">{{ formatDuration(s.duration_seconds) }}</td>
                 <td class="py-2.5 px-3.5 text-right">
@@ -1045,7 +1802,7 @@ onUnmounted(() => {
               <div class="flex items-center justify-between">
                 <div>
                   <div class="text-[11px] text-slate-400">{{ t('updater.current_version') }}</div>
-                  <div class="text-xs font-mono text-slate-200">v0.1.0</div>
+                  <div class="text-xs font-mono text-slate-200">v0.2.0</div>
                 </div>
                 <button 
                   @click="handleCheckForUpdates" 
@@ -1515,6 +2272,21 @@ onUnmounted(() => {
             </button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Screenshot Preview Lightbox Modal -->
+    <div 
+      v-if="previewScreenshot" 
+      @click="previewScreenshot = null"
+      class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="relative max-w-5xl max-h-[90vh] bg-slate-900 rounded-xl overflow-hidden border border-slate-800 shadow-2xl" @click.stop>
+        <button 
+          @click="previewScreenshot = null" 
+          class="absolute top-3 right-3 p-1.5 rounded-full bg-slate-950/80 text-white hover:bg-slate-800 transition z-10">
+          <X class="w-4 h-4" />
+        </button>
+        <img :src="previewScreenshot" class="max-w-full max-h-[85vh] object-contain rounded-lg" />
       </div>
     </div>
   </div>

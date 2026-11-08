@@ -13,7 +13,7 @@ Stop-Process -Name "gametracker-client" -Force -ErrorAction SilentlyContinue
 if ($Bundle) {
     Write-Host "Erstelle NSIS Windows Setup Installer..." -ForegroundColor Cyan
     npx @tauri-apps/cli build
-    Write-Host "Fertig! Installer liegt unter: .\target\release\bundle\nsis\PlayCounter_0.1.0_x64-setup.exe" -ForegroundColor Green
+    Write-Host "Fertig! Installer liegt unter: .\target\release\bundle\nsis\PlayCounter_0.2.0_x64-setup.exe" -ForegroundColor Green
 } else {
     Write-Host "Kompiliere PlayCounter Release Binary..." -ForegroundColor Cyan
     npx @tauri-apps/cli build --no-bundle

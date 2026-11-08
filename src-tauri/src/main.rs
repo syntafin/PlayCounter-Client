@@ -82,6 +82,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_historical_stats,
             get_recent_sessions,
+            get_game_sessions,
             get_tracker_status,
             trigger_sync,
             get_config,

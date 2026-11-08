@@ -7,7 +7,7 @@ const STORAGE_KEY = 'playcounter_language'
 const messages = {
   de: {
     // Navigation
-    'nav.stats': 'Statistiken & Spiele',
+    'nav.stats': 'Spielebibliothek',
     'nav.sessions': 'Sitzungen',
     'nav.settings': 'Einstellungen',
 
@@ -21,6 +21,53 @@ const messages = {
     'active.game_running': 'Spiel läuft gerade',
     'active.current_playtime': 'Aktuelle Spielzeit',
 
+    // Library & Filter
+    'library.title': 'Spielebibliothek',
+    'library.subtitle': 'Erfasste Spielzeiten, Metadaten und aktive Überwachung',
+    'library.search_placeholder': 'Suche nach Spiel...',
+    'library.sort_label': 'Sortieren nach',
+    'library.sort_playtime': 'Spielzeit (absteigend)',
+    'library.sort_recent': 'Zuletzt gespielt',
+    'library.sort_name': 'Name (A-Z)',
+    'library.filter_status': 'Status',
+    'library.filter_all': 'Alle Spiele',
+    'library.filter_played': 'Gespielt',
+    'library.filter_monitored': 'Überwacht',
+    'library.filter_genre': 'Genre',
+    'library.filter_all_genres': 'Alle Genres',
+    'library.no_games_found': 'Keine passenden Spiele gefunden.',
+    'library.total_tracked_time': 'Gesamtspielzeit',
+    'library.last_played': 'Zuletzt gespielt',
+    'library.never_played': 'Noch nicht gespielt',
+    'library.now_playing': 'Spielt gerade',
+
+    // Detail View
+    'detail.back': 'Zurück zur Bibliothek',
+    'detail.tab_overview': 'Übersicht',
+    'detail.tab_stats': 'Statistik',
+    'detail.about_title': 'Über das Spiel',
+    'detail.screenshots_title': 'Screenshots & Galerie',
+    'detail.metadata_title': 'Metadaten',
+    'detail.release_date': 'Release',
+    'detail.developer': 'Entwickler',
+    'detail.publisher': 'Publisher',
+    'detail.steam_app_id': 'Steam App-ID',
+    'detail.genres_tags': 'Genres & Tags',
+    'detail.process_name': 'Ausführungsdatei',
+    'detail.stats_summary': 'Statistik',
+    'detail.total_playtime': 'Gesamtspielzeit',
+    'detail.last_session': 'Letzte Sitzung',
+    'detail.avg_session': 'Ø Sitzungsdauer',
+    'detail.session_count': 'Spielsitzungen',
+    'detail.history_title': 'Sitzungs-Historie',
+    'detail.date_col': 'Datum',
+    'detail.timespan_col': 'Zeitraum',
+    'detail.duration_col': 'Dauer',
+    'detail.no_sessions_yet': 'Für dieses Spiel wurden noch keine beendeten Sitzungen erfasst.',
+    'detail.toggle_watch': 'Überwachung umschalten',
+    'detail.watching_active': 'Wird überwacht',
+    'detail.watching_inactive': 'Nicht überwacht',
+
     // Stats
     'stats.total_time': 'Gesamtspielzeit',
     'stats.hours': 'Stunden',
@@ -29,7 +76,6 @@ const messages = {
     'stats.waiting_sync': 'Warten auf Übertragung',
     'stats.all_synced': 'Vollständig synchronisiert',
     'stats.top_games': 'Meistgespielte Titel',
-    'stats.local_db': 'Lokal in SQLite erfasst',
     'stats.no_data': 'Noch keine Spielzeiten erfasst. Starte ein überwachtes Spiel, um das Tracking zu beginnen.',
 
     // Sessions
@@ -156,7 +202,7 @@ const messages = {
   },
   en: {
     // Navigation
-    'nav.stats': 'Statistics & Games',
+    'nav.stats': 'Game Library',
     'nav.sessions': 'Sessions',
     'nav.settings': 'Settings',
 
@@ -170,6 +216,53 @@ const messages = {
     'active.game_running': 'Game currently running',
     'active.current_playtime': 'Current Playtime',
 
+    // Library & Filter
+    'library.title': 'Game Library',
+    'library.subtitle': 'Tracked playtimes, rich metadata and active monitoring',
+    'library.search_placeholder': 'Search games...',
+    'library.sort_label': 'Sort by',
+    'library.sort_playtime': 'Playtime (highest)',
+    'library.sort_recent': 'Recently played',
+    'library.sort_name': 'Name (A-Z)',
+    'library.filter_status': 'Status',
+    'library.filter_all': 'All Games',
+    'library.filter_played': 'Played',
+    'library.filter_monitored': 'Monitored',
+    'library.filter_genre': 'Genre',
+    'library.filter_all_genres': 'All Genres',
+    'library.no_games_found': 'No matching games found.',
+    'library.total_tracked_time': 'Total Playtime',
+    'library.last_played': 'Last played',
+    'library.never_played': 'Never played',
+    'library.now_playing': 'Playing now',
+
+    // Detail View
+    'detail.back': 'Back to Library',
+    'detail.tab_overview': 'Overview',
+    'detail.tab_stats': 'Statistics',
+    'detail.about_title': 'About the Game',
+    'detail.screenshots_title': 'Screenshots & Gallery',
+    'detail.metadata_title': 'Metadata',
+    'detail.release_date': 'Release',
+    'detail.developer': 'Developer',
+    'detail.publisher': 'Publisher',
+    'detail.steam_app_id': 'Steam App ID',
+    'detail.genres_tags': 'Genres & Tags',
+    'detail.process_name': 'Executable File',
+    'detail.stats_summary': 'Statistics',
+    'detail.total_playtime': 'Total Playtime',
+    'detail.last_session': 'Last Session',
+    'detail.avg_session': 'Avg. Session Length',
+    'detail.session_count': 'Total Sessions',
+    'detail.history_title': 'Session History',
+    'detail.date_col': 'Date',
+    'detail.timespan_col': 'Timespan',
+    'detail.duration_col': 'Duration',
+    'detail.no_sessions_yet': 'No completed sessions recorded for this game yet.',
+    'detail.toggle_watch': 'Toggle Tracking',
+    'detail.watching_active': 'Monitored',
+    'detail.watching_inactive': 'Not monitored',
+
     // Stats
     'stats.total_time': 'Total Playtime',
     'stats.hours': 'Hours',
@@ -178,7 +271,6 @@ const messages = {
     'stats.waiting_sync': 'Waiting for sync',
     'stats.all_synced': 'Fully synchronized',
     'stats.top_games': 'Top Played Games',
-    'stats.local_db': 'Tracked locally in SQLite',
     'stats.no_data': 'No playtime recorded yet. Launch a monitored game to start tracking.',
 
     // Sessions
