@@ -16,10 +16,10 @@ jobs:
         include:
           - platform: 'windows-latest'
             target: 'x86_64-pc-windows-msvc'
-            args: '--bundles nsis'
+            args: ''
           - platform: 'ubuntu-22.04'
             target: 'x86_64-unknown-linux-gnu'
-            args: '--bundles deb,appimage'
+            args: ''
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -95,7 +95,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || secrets.TAURI_SIGNING_KEY_PASSWORD || '' }}
         with:
           tagName: v__VERSION__
           releaseName: 'PlayCounter v__VERSION__'

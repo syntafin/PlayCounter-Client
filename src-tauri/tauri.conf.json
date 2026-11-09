@@ -38,6 +38,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "category": "Utility",
     "shortDescription": "Automatisierter Game-Tracker & Spielzeitzähler",
     "longDescription": "PlayCounter erfasst deine Spielzeiten auf dem PC und bietet detaillierte Sitzungsstatistiken und Bibliotheksverwaltung.",
