@@ -261,6 +261,12 @@ impl Database {
         Ok(count)
     }
 
+    /// Marks an event as unmapped (HTTP 404 on remote server) so it doesn't block the sync queue
+    pub fn mark_event_unmapped(&self, id: i64) -> Result<()> {
+        self.conn.execute("UPDATE playtime SET is_synced = 2 WHERE id = ?1;", params![id])?;
+        Ok(())
+    }
+
     /// Aggregates total playtime by game in seconds (combines live sessions and imported historical playtime)
     pub fn get_total_playtime_by_game(&self) -> Result<Vec<(String, i64)>> {
         let mut stmt = self.conn.prepare(

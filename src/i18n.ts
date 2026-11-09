@@ -114,6 +114,9 @@ const messages = {
     'settings.lang_system': 'Systemsprache (Standard)',
     'settings.lang_de': 'Deutsch',
     'settings.lang_en': 'English',
+    'settings.autostart': 'Mit Windows starten',
+    'settings.autostart_desc': 'PlayCounter beim Systemstart minimiert im Hintergrund ausführen',
+    'settings.autostart_error': 'Fehler beim Ändern des Autostarts: {error}',
 
     // Updater
     'updater.current_version': 'Installierte Version',
@@ -309,6 +312,9 @@ const messages = {
     'settings.lang_system': 'System Default',
     'settings.lang_de': 'Deutsch',
     'settings.lang_en': 'English',
+    'settings.autostart': 'Start with Windows',
+    'settings.autostart_desc': 'Launch PlayCounter minimized in the background on startup',
+    'settings.autostart_error': 'Failed to change autostart setting: {error}',
 
     // Updater
     'updater.current_version': 'Installed Version',

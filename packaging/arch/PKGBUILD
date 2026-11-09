@@ -1,0 +1,18 @@
+# Maintainer: Syntafin <info@syntafin.de>
+pkgname=playcounter-bin
+pkgver=0.2.1
+pkgrel=1
+pkgdesc="Automatisierter Game-Tracker & Spielzeitzähler (PlayCounter)"
+arch=('x86_64')
+url="https://github.com/syntafin/PlayCounter-Client"
+license=('proprietary')
+depends=('webkit2gtk-4.1' 'libappindicator-gtk3' 'librsvg' 'openssl')
+provides=('playcounter')
+conflicts=('playcounter')
+source=("https://github.com/syntafin/PlayCounter-Client/releases/download/v${pkgver}/playcounter_${pkgver}_amd64.deb")
+sha256sums=('SKIP')
+
+package() {
+  # Extrahiere Daten aus dem Release-Debian-Paket für Arch Linux / CachyOS
+  tar -xf data.tar.* -C "${pkgdir}"
+}

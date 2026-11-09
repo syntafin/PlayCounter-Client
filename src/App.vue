@@ -4,6 +4,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
+import { getVersion } from '@tauri-apps/api/app'
+import { isEnabled as isAutostartEnabled, enable as enableAutostart, disable as disableAutostart } from '@tauri-apps/plugin-autostart'
 import { t, activeLocale, currentLanguageChoice, setLanguage, type LanguageChoice, type MessageKey } from './i18n'
 import { 
   BarChart3, 
@@ -196,6 +198,7 @@ const isSyncing = ref(false)
 const toastMessage = ref<{ type: 'success' | 'error'; text: string } | null>(null)
 
 // In-App Updater
+const appVersion = ref('')
 const isCheckingUpdates = ref(false)
 const updateInfo = ref<{ version: string; body?: string } | null>(null)
 const updateStatusText = ref<string | null>(null)
@@ -243,6 +246,43 @@ async function handleInstallUpdate() {
     }
   } finally {
     isDownloadingUpdate.value = false
+  }
+}
+
+// Autostart
+const isAutostart = ref(false)
+const isUpdatingAutostart = ref(false)
+
+async function checkAutostart() {
+  try {
+    isAutostart.value = await isAutostartEnabled()
+  } catch (err) {
+    console.warn('Failed to query autostart status:', err)
+  }
+}
+
+async function toggleAutostart() {
+  if (isUpdatingAutostart.value) return
+  isUpdatingAutostart.value = true
+  try {
+    if (isAutostart.value) {
+      await disableAutostart()
+      isAutostart.value = false
+    } else {
+      await enableAutostart()
+      isAutostart.value = true
+    }
+  } catch (err: any) {
+    console.error('Failed to toggle autostart:', err)
+    toastMessage.value = {
+      type: 'error',
+      text: t('settings.autostart_error', { error: String(err) }),
+    }
+    setTimeout(() => {
+      toastMessage.value = null
+    }, 4000)
+  } finally {
+    isUpdatingAutostart.value = false
   }
 }
 
@@ -1067,7 +1107,11 @@ function formatDuration(sec: number) {
 }
 
 onMounted(async () => {
+  try {
+    appVersion.value = await getVersion()
+  } catch {}
   await loadData()
+  await checkAutostart()
 
   timerInterval = window.setInterval(() => {
     if (status.value.active_game) {
@@ -1797,12 +1841,35 @@ onUnmounted(() => {
               </select>
             </div>
 
+            <!-- Autostart Row -->
+            <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between">
+              <div>
+                <div class="text-xs font-medium text-slate-200">{{ t('settings.autostart') }}</div>
+                <div class="text-[11px] text-slate-400">{{ t('settings.autostart_desc') }}</div>
+              </div>
+              <button 
+                type="button"
+                @click="toggleAutostart"
+                :disabled="isUpdatingAutostart"
+                :class="[
+                  isAutostart ? 'bg-indigo-600' : 'bg-slate-800 border border-slate-700',
+                  'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50'
+                ]">
+                <span 
+                  :class="[
+                    isAutostart ? 'translate-x-4 bg-white' : 'translate-x-0.5 bg-slate-400',
+                    'pointer-events-none inline-block h-4 w-4 transform rounded-full shadow ring-0 transition duration-200 ease-in-out mt-0.5'
+                  ]" 
+                />
+              </button>
+            </div>
+
             <!-- In-App Updater Row -->
             <div class="pt-3 border-t border-slate-800/80 space-y-2">
               <div class="flex items-center justify-between">
                 <div>
                   <div class="text-[11px] text-slate-400">{{ t('updater.current_version') }}</div>
-                  <div class="text-xs font-mono text-slate-200">v0.2.0</div>
+                  <div class="text-xs font-mono text-slate-200">{{ appVersion ? `v${appVersion}` : '...' }}</div>
                 </div>
                 <button 
                   @click="handleCheckForUpdates" 

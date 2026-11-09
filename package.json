@@ -1,15 +1,20 @@
 {
   "name": "playcounter-client",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "bump": "node scripts/bump-version.js"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/plugin-autostart": "^2.7.0",
     "@tauri-apps/plugin-process": "^2.4.0",
     "@tauri-apps/plugin-shell": "^2.0.1",
     "@tauri-apps/plugin-updater": "^2.14.1",

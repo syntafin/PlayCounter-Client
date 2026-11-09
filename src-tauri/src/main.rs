@@ -105,6 +105,13 @@ fn main() {
         .setup(move |app| {
             let handle = app.handle();
 
+            // When started via autostart with `--minimized`, start hidden in system tray
+            if std::env::args().any(|arg| arg == "--minimized") {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            }
+
             // Setup System Tray Menu
             let show_i = MenuItem::with_id(handle, "show", "Dashboard öffnen", true, None::<&str>)?;
             let sync_i = MenuItem::with_id(handle, "sync", "Jetzt synchronisieren", true, None::<&str>)?;

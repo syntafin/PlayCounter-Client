@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use thiserror::Error;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 #[derive(Error, Debug)]
 pub enum SyncError {
@@ -161,6 +161,15 @@ pub async fn sync_pending_events(
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
             Err(err) => {
+                if let SyncError::Api { status: 404, ref body } = err {
+                    warn!(
+                        "⚠️ Game '{}' not found on remote server (HTTP 404: {}). Marking event #{} as unmapped to avoid blocking queue.",
+                        event.game, body, event_id
+                    );
+                    let db_lock = db.lock().unwrap();
+                    let _ = db_lock.mark_event_unmapped(event_id)?;
+                    continue;
+                }
                 error!("❌ Sync failed for event #{} ({} - {}): {}", event_id, event.game, event.event, err);
                 // Stop immediately to preserve event sequence
                 return Err(err);

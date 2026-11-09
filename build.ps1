@@ -10,12 +10,14 @@ $env:LIBPATH = [Environment]::GetEnvironmentVariable("LIBPATH", "User")
 Stop-Process -Name "playcounter-client" -Force -ErrorAction SilentlyContinue
 Stop-Process -Name "gametracker-client" -Force -ErrorAction SilentlyContinue
 
+$version = (Get-Content "package.json" | ConvertFrom-Json).version
+
 if ($Bundle) {
-    Write-Host "Erstelle NSIS Windows Setup Installer..." -ForegroundColor Cyan
+    Write-Host "Erstelle NSIS Windows Setup Installer für v$version..." -ForegroundColor Cyan
     npx @tauri-apps/cli build
-    Write-Host "Fertig! Installer liegt unter: .\target\release\bundle\nsis\PlayCounter_0.2.0_x64-setup.exe" -ForegroundColor Green
+    Write-Host "Fertig! Installer liegt unter: .\target\release\bundle\nsis\PlayCounter_${version}_x64-setup.exe" -ForegroundColor Green
 } else {
-    Write-Host "Kompiliere PlayCounter Release Binary..." -ForegroundColor Cyan
+    Write-Host "Kompiliere PlayCounter Release Binary für v$version..." -ForegroundColor Cyan
     npx @tauri-apps/cli build --no-bundle
     Write-Host "Fertig! Die Binary liegt unter: .\target\release\playcounter-client.exe" -ForegroundColor Green
 }

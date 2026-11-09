@@ -19,6 +19,8 @@ tracker.pid
 running_games.json
 *.log
 *.key
+out.txt
+out_run.txt
 
 # IDE
 .vscode/
