@@ -1241,40 +1241,86 @@ onUnmounted(() => {
         
         <!-- DETAIL PAGE VIEW (Screenshots 3 & 4) -->
         <div v-if="selectedGameForDetail" class="space-y-4">
-          <!-- Back button & Detail Header -->
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div class="flex items-center gap-3">
+          <!-- Back button & Detail Hero Header (Matches Syntafin Show.vue) -->
+          <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-start justify-between gap-4">
+            <div class="flex items-start gap-4 min-w-0">
+              <!-- Cover Art Frame -->
+              <div class="w-16 h-22 sm:w-20 sm:h-28 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shadow-md shrink-0 relative group">
+                <img 
+                  v-if="selectedGameForDetail.cover_url" 
+                  :src="selectedGameForDetail.cover_url" 
+                  :alt="selectedGameForDetail.displayName"
+                  class="w-full h-full object-cover" 
+                  @error="(e: any) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }" />
+                <div 
+                  :style="{ display: selectedGameForDetail.cover_url ? 'none' : 'flex' }"
+                  class="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-gradient-to-br from-indigo-950/60 to-slate-900 text-slate-500">
+                  <Gamepad2 class="w-7 h-7 text-indigo-400/60 mb-1" />
+                  <span class="text-[9px] font-bold text-slate-400 line-clamp-2">{{ selectedGameForDetail.displayName }}</span>
+                </div>
+                <div v-if="selectedGameForDetail.is_active" class="absolute top-1 left-1 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[8px] font-bold shadow animate-pulse">
+                  <span class="h-1 w-1 rounded-full bg-slate-950"></span>
+                  <span>LIVE</span>
+                </div>
+              </div>
+
+              <!-- Title, Process & Meta Tags -->
+              <div class="space-y-1.5 min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="font-mono text-xs text-indigo-400 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-500/20">
+                    {{ selectedGameForDetail.executable }}
+                  </span>
+                  <span 
+                    v-if="selectedGameForDetail.is_monitored" 
+                    class="text-[10px] px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 font-medium">
+                    {{ t('detail.watching_active') }}
+                  </span>
+                </div>
+
+                <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight truncate">
+                  {{ selectedGameForDetail.displayName }}
+                </h1>
+
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+                  <div v-if="selectedGameForDetail.developer" class="flex items-center gap-1">
+                    <Building2 class="w-3.5 h-3.5 text-slate-500" />
+                    <span>{{ selectedGameForDetail.developer }}</span>
+                  </div>
+                  <div v-if="selectedGameForDetail.release_date" class="flex items-center gap-1">
+                    <Calendar class="w-3.5 h-3.5 text-slate-500" />
+                    <span>{{ selectedGameForDetail.release_date }}</span>
+                  </div>
+                  <a 
+                    v-if="selectedGameForDetail.steam_app_id" 
+                    :href="`https://store.steampowered.com/app/${selectedGameForDetail.steam_app_id}`" 
+                    target="_blank"
+                    class="flex items-center gap-1 text-indigo-400 hover:underline">
+                    <ExternalLink class="w-3.5 h-3.5" />
+                    <span>Steam Store</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions: Back button & Monitoring Toggle -->
+            <div class="flex items-center gap-2 shrink-0 self-start sm:self-auto">
               <button 
                 @click="selectedGameForDetail = null"
                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 transition">
                 <ArrowLeft class="w-3.5 h-3.5" />
                 <span>{{ t('detail.back') }}</span>
               </button>
-              <div>
-                <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-                  <span>{{ selectedGameForDetail.displayName }}</span>
-                  <span 
-                    v-if="selectedGameForDetail.is_active"
-                    class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    {{ t('library.now_playing') }}
-                  </span>
-                </h1>
-                <div class="text-xs font-mono text-slate-400 mt-0.5">
-                  {{ selectedGameForDetail.executable }}
-                </div>
-              </div>
-            </div>
 
-            <!-- Action: Toggle Monitoring -->
-            <button 
-              @click="handleToggleWatchGame(selectedGameForDetail.executable)"
-              class="px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition"
-              :class="selectedGameForDetail.is_monitored 
-                ? 'bg-indigo-950/60 text-indigo-300 border-indigo-500/40 hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-500/40' 
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'">
-              <Star class="w-3.5 h-3.5" :class="{ 'fill-current': selectedGameForDetail.is_monitored }" />
-              <span>{{ selectedGameForDetail.is_monitored ? t('detail.watching_active') : t('detail.watching_inactive') }}</span>
-            </button>
+              <button 
+                @click="handleToggleWatchGame(selectedGameForDetail.executable)"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition"
+                :class="selectedGameForDetail.is_monitored 
+                  ? 'bg-rose-950/40 text-rose-300 border-rose-500/30 hover:bg-rose-900/50' 
+                  : 'bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-500'">
+                <Star class="w-3.5 h-3.5" :class="{ 'fill-current': selectedGameForDetail.is_monitored }" />
+                <span>{{ selectedGameForDetail.is_monitored ? t('detail.watching_active') : t('detail.toggle_watch') }}</span>
+              </button>
+            </div>
           </div>
 
           <!-- Detail Navigation Tabs -->
@@ -1299,10 +1345,10 @@ onUnmounted(() => {
           </div>
 
           <!-- Grid: Main Left, Sidebar Right (Screenshots 3 & 4) -->
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
             
             <!-- Left Main Column -->
-            <div class="lg:col-span-2 space-y-4">
+            <div class="md:col-span-2 space-y-4">
               
               <!-- Tab 1: Overview (Screenshot 3) -->
               <div v-if="detailActiveTab === 'overview'" class="space-y-4">
@@ -1408,21 +1454,40 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Right Sidebar Column (Screenshots 3 & 4) -->
+            <!-- Right Sidebar Column (Screenshots 3 & 4 - Matches Syntafin Show.vue) -->
             <div class="space-y-4">
-              <!-- Game Poster -->
-              <div class="rounded-xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl aspect-[3/4] relative">
-                <img 
-                  v-if="selectedGameForDetail.cover_url" 
-                  :src="selectedGameForDetail.cover_url" 
-                  :alt="selectedGameForDetail.displayName"
-                  class="w-full h-full object-cover" 
-                  @error="(e: any) => { e.target.style.display = 'none'; if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex'; }" />
-                <div 
-                  :style="{ display: selectedGameForDetail.cover_url ? 'none' : 'flex' }"
-                  class="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-indigo-950 to-slate-900 text-slate-500">
-                  <Gamepad2 class="w-16 h-16 text-indigo-400/50 mb-2" />
-                  <span class="text-sm font-bold text-white">{{ selectedGameForDetail.displayName }}</span>
+              <!-- Quick Stats Summary Box (Matches Syntafin your_stats) -->
+              <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                <h3 class="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Clock class="w-3.5 h-3.5 text-indigo-400" />
+                  <span>{{ t('detail.stats_summary') }}</span>
+                </h3>
+                
+                <div>
+                  <div class="text-[11px] text-slate-400">{{ t('detail.total_playtime') }}</div>
+                  <div class="text-2xl font-black text-indigo-400 tracking-tight mt-0.5">
+                    {{ detailStats.totalPlaytime }}
+                  </div>
+                  <div class="text-[10px] text-slate-500">{{ detailStats.totalHours }} {{ t('stats.hours') }}</div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5 pt-3 border-t border-slate-800/80 text-xs">
+                  <div>
+                    <span class="text-[10px] text-slate-400 block">{{ t('detail.session_count') }}</span>
+                    <span class="font-bold text-white">{{ detailStats.totalSessionsCount }}</span>
+                  </div>
+                  <div>
+                    <span class="text-[10px] text-slate-400 block">{{ t('detail.avg_session') }}</span>
+                    <span class="font-bold text-white">{{ detailStats.avgSessionDuration }}</span>
+                  </div>
+                  <div>
+                    <span class="text-[10px] text-slate-400 block">{{ t('detail.last_session') }}</span>
+                    <span class="font-bold text-white">{{ detailStats.lastSessionDuration }}</span>
+                  </div>
+                  <div>
+                    <span class="text-[10px] text-slate-400 block">{{ t('library.last_played') }}</span>
+                    <span class="font-medium text-slate-300 text-[11px]">{{ detailStats.lastPlayedDate }}</span>
+                  </div>
                 </div>
               </div>
 
@@ -1434,6 +1499,13 @@ onUnmounted(() => {
                 </h3>
 
                 <div class="space-y-2 pt-1 divide-y divide-slate-800/60">
+                  <div class="pt-2 flex justify-between items-center">
+                    <span class="text-slate-400">{{ t('detail.process_name') }}</span>
+                    <span class="font-mono text-slate-300 text-[11px] truncate max-w-[150px]">
+                      {{ selectedGameForDetail.executable }}
+                    </span>
+                  </div>
+
                   <div v-if="selectedGameForDetail.release_date" class="pt-2 flex justify-between">
                     <span class="text-slate-400">{{ t('detail.release_date') }}</span>
                     <span class="font-medium text-slate-200">{{ selectedGameForDetail.release_date }}</span>
@@ -1456,13 +1528,6 @@ onUnmounted(() => {
                     </span>
                   </div>
 
-                  <div class="pt-2 flex justify-between items-center">
-                    <span class="text-slate-400">{{ t('detail.process_name') }}</span>
-                    <span class="font-mono text-slate-300 text-[11px] truncate max-w-[150px]">
-                      {{ selectedGameForDetail.executable }}
-                    </span>
-                  </div>
-
                   <div v-if="selectedGameForDetail.genres && selectedGameForDetail.genres.length > 0" class="pt-2 space-y-1.5">
                     <span class="text-slate-400 block">{{ t('detail.genres_tags') }}</span>
                     <div class="flex flex-wrap gap-1">
@@ -1473,28 +1538,6 @@ onUnmounted(() => {
                         {{ genre }}
                       </span>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Quick Stats Summary Box -->
-              <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2.5 text-xs">
-                <h3 class="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-2">
-                  <Clock class="w-3.5 h-3.5 text-indigo-400" />
-                  <span>{{ t('detail.stats_summary') }}</span>
-                </h3>
-                <div class="space-y-1.5 pt-1">
-                  <div class="flex justify-between">
-                    <span class="text-slate-400">{{ t('detail.total_playtime') }}</span>
-                    <span class="font-bold text-indigo-300">{{ detailStats.totalPlaytime }}</span>
-                  </div>
-                  <div class="flex justify-between">
-                    <span class="text-slate-400">{{ t('detail.last_session') }}</span>
-                    <span class="text-slate-200">{{ detailStats.lastSessionDuration }}</span>
-                  </div>
-                  <div class="flex justify-between">
-                    <span class="text-slate-400">{{ t('library.last_played') }}</span>
-                    <span class="text-slate-400">{{ detailStats.lastPlayedDate }}</span>
                   </div>
                 </div>
               </div>

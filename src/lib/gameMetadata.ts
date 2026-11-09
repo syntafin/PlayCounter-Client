@@ -214,17 +214,31 @@ class GameMetadataService {
 
     if (!meta) return null
 
-    if (meta.game_cover_url) {
+    // Ignore broken development localhost URLs
+    if (meta.game_cover_url && !meta.game_cover_url.includes('localhost:8000')) {
       return meta.game_cover_url
     }
 
     if (meta.image_path) {
       if (meta.image_path.startsWith('http://') || meta.image_path.startsWith('https://')) {
-        return meta.image_path
+        if (!meta.image_path.includes('localhost:8000')) {
+          return meta.image_path
+        }
+      } else if (apiBaseUrl && !apiBaseUrl.includes('localhost:8000')) {
+        // Point to syntafin backend storage if valid custom API URL configured
+        const base = apiBaseUrl.replace(/\/v1\/game\/?$/, '').replace(/\/+$/, '')
+        return `${base}/storage/${meta.image_path.replace(/^\/+/, '')}`
       }
-      // Point to syntafin backend storage
-      const base = (apiBaseUrl || 'https://api.syntafin.de').replace(/\/v1\/game\/?$/, '').replace(/\/+$/, '')
-      return `${base}/storage/${meta.image_path.replace(/^\/+/, '')}`
+    }
+
+    // High quality Steam CDN capsule fallback
+    if (meta.steam_app_id) {
+      return `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${meta.steam_app_id}/library_600x900.jpg`
+    }
+
+    // Fallback: first screenshot thumbnail
+    if (meta.screenshots && meta.screenshots.length > 0) {
+      return meta.screenshots[0].thumbnail || meta.screenshots[0].full || null
     }
 
     return null
@@ -240,16 +254,30 @@ class GameMetadataService {
 
     if (!meta) return null
 
-    if (meta.game_banner_url) {
+    // Ignore broken development localhost URLs
+    if (meta.game_banner_url && !meta.game_banner_url.includes('localhost:8000')) {
       return meta.game_banner_url
     }
 
     if (meta.banner_path) {
       if (meta.banner_path.startsWith('http://') || meta.banner_path.startsWith('https://')) {
-        return meta.banner_path
+        if (!meta.banner_path.includes('localhost:8000')) {
+          return meta.banner_path
+        }
+      } else if (apiBaseUrl && !apiBaseUrl.includes('localhost:8000')) {
+        const base = apiBaseUrl.replace(/\/v1\/game\/?$/, '').replace(/\/+$/, '')
+        return `${base}/storage/${meta.banner_path.replace(/^\/+/, '')}`
       }
-      const base = (apiBaseUrl || 'https://api.syntafin.de').replace(/\/v1\/game\/?$/, '').replace(/\/+$/, '')
-      return `${base}/storage/${meta.banner_path.replace(/^\/+/, '')}`
+    }
+
+    // Steam header banner fallback
+    if (meta.steam_app_id) {
+      return `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${meta.steam_app_id}/header.jpg`
+    }
+
+    // Fallback: first full screenshot
+    if (meta.screenshots && meta.screenshots.length > 0) {
+      return meta.screenshots[0].full || meta.screenshots[0].thumbnail || null
     }
 
     return null
