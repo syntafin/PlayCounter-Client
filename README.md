@@ -93,17 +93,22 @@ sudo apt-get install -f
 
 ## Versionierung & Release
 
-Die Versionierung erfolgt über einen einzigen Befehl. Dieser aktualisiert automatisch alle Manifeste (`package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `packaging/arch/PKGBUILD`). Die UI (`App.vue`) und das Build-Skript (`build.ps1`) lesen die Version dynamisch aus:
+Ein einziger Befehl aktualisiert alle Manifeste (`package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `packaging/arch/PKGBUILD`), committet die Änderungen, vergibt das passende Git-Tag und pusht automatisch zu GitHub:
 
 ```bash
-# Bestimmte Version setzen (oder: npm run bump patch / minor / major):
+# Nächstes Patch-Release (z.B. 0.2.4 -> 0.2.5), committen, taggen und pushen:
+npm run bump
+# oder:
+npm run release
+
+# Spezifische Version oder SemVer-Schritt:
 npm run bump 0.3.0
+npm run bump minor
+npm run bump major
 
-# Optional inklusive automatischem Git-Commit und Tag:
-npm run bump 0.3.0 -- --tag
-
-# Anschließend Tag pushen, um den automatischen CI/CD-Build auszulösen:
-git push origin HEAD --tags
+# Nur Versionsdateien anpassen ohne automatischen Git-Push:
+npm run bump 0.3.0 -- --no-push
+npm run bump 0.3.0 -- --no-git
 ```
 
 ---

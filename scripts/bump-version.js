@@ -7,16 +7,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, '..')
 
 const args = process.argv.slice(2)
+const noGit = args.includes('--no-git')
+const noPush = args.includes('--no-push')
 const targetArg = args.find(a => !a.startsWith('--'))
-const shouldTag = args.includes('--tag')
-
-if (!targetArg) {
-  console.error('\nFehler: Keine Version angegeben!')
-  console.log('Verwendung: node scripts/bump-version.js <version | patch | minor | major> [--tag]')
-  console.log('Beispiel:   npm run bump 0.3.0')
-  console.log('            npm run bump patch\n')
-  process.exit(1)
-}
 
 // 1. Read current version from package.json
 const pkgPath = path.join(rootDir, 'package.json')
@@ -45,14 +38,16 @@ function bumpSemver(version, type) {
 }
 
 let newVersion = targetArg
-if (['patch', 'minor', 'major'].includes(targetArg)) {
+if (!targetArg || targetArg === 'patch') {
+  newVersion = bumpSemver(currentVersion, 'patch')
+} else if (['minor', 'major'].includes(targetArg)) {
   newVersion = bumpSemver(currentVersion, targetArg)
 }
 
 // Clean leading 'v' if entered by mistake (e.g. v0.3.0 -> 0.3.0)
 newVersion = newVersion.replace(/^v/, '')
 
-console.log(`\nPlayCounter Version Bump: v${currentVersion} -> v${newVersion}\n`)
+console.log(`\n🚀 PlayCounter Automated Release Bump: v${currentVersion} -> v${newVersion}\n`)
 
 // 1. Update package.json
 pkg.version = newVersion
@@ -87,26 +82,33 @@ if (fs.existsSync(pkgbuildPath)) {
   console.log(`✓ packaging/arch/PKGBUILD aktualisiert (${newVersion})`)
 }
 
-let currentBranch = 'master'
-try {
-  currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: rootDir }).toString().trim()
-} catch {}
-
-if (shouldTag) {
+if (!noGit) {
+  let currentBranch = 'main'
   try {
-    console.log(`\nErstelle Git Commit und Tag v${newVersion}...`)
-    execSync('git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml packaging/arch/PKGBUILD', { stdio: 'inherit', cwd: rootDir })
+    currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: rootDir }).toString().trim()
+  } catch {}
+
+  console.log(`\n📦 Committe Versionsdateien...`)
+  execSync('git add .', { stdio: 'inherit', cwd: rootDir })
+
+  try {
     execSync(`git commit -m "chore: release v${newVersion}"`, { stdio: 'inherit', cwd: rootDir })
-    execSync(`git tag v${newVersion}`, { stdio: 'inherit', cwd: rootDir })
-    console.log(`✓ Tag v${newVersion} erstellt!`)
-    console.log(`\nJetzt ausführen zum Veröffentlichen:`)
-    console.log(`git push origin ${currentBranch} --tags\n`)
-  } catch (err) {
-    console.error('Git Tagging fehlgeschlagen:', err.message)
+    console.log(`✓ Commit "chore: release v${newVersion}" erstellt.`)
+  } catch {
+    console.log(`ℹ Keine neuen Dateiänderungen für diesen Commit.`)
+  }
+
+  console.log(`🏷️ Erstelle Git-Tag v${newVersion}...`)
+  execSync(`git tag -f v${newVersion}`, { stdio: 'inherit', cwd: rootDir })
+  console.log(`✓ Git-Tag v${newVersion} gesetzt.`)
+
+  if (!noPush) {
+    console.log(`\n⬆️ Pushe Branch '${currentBranch}' und Tags zu origin...`)
+    execSync(`git push origin ${currentBranch} --tags --force`, { stdio: 'inherit', cwd: rootDir })
+    console.log(`\n✅ Erfolgreich gepusht! GitHub Actions baut und veröffentlicht das Release v${newVersion} jetzt automatisch.\n`)
+  } else {
+    console.log(`\nℹ Push übersprungen (--no-push aktiv).`)
   }
 } else {
-  console.log(`\nFertig! Um das Release jetzt zu committen und zu taggen:`)
-  console.log(`git commit -am "chore: release v${newVersion}"`)
-  console.log(`git tag v${newVersion}`)
-  console.log(`git push origin ${currentBranch} --tags\n`)
+  console.log(`\nℹ Git-Aktionen übersprungen (--no-git aktiv).`)
 }
