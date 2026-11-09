@@ -1,6 +1,6 @@
 # Maintainer: Syntafin <info@syntafin.de>
 pkgname=playcounter-bin
-pkgver=0.2.2
+pkgver=0.2.3
 pkgrel=1
 pkgdesc="Automatisierter Game-Tracker & Spielzeitzähler (PlayCounter)"
 arch=('x86_64')
