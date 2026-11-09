@@ -25,6 +25,35 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Changelog
+        id: changelog
+        shell: bash
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"* %s (%h)" "${PREV_TAG}..HEAD")
+          else
+            COMMITS=$(git log --pretty=format:"* %s (%h)" -n 15)
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            COMMITS="* Maintenance and performance improvements."
+          fi
+
+          EOF="EOF_${RANDOM}_$(date +%s)"
+          echo "body<<$EOF" >> $GITHUB_OUTPUT
+          echo "## What's Changed" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "### Download Packages" >> $GITHUB_OUTPUT
+          echo "- **Windows:** NSIS Setup Installer (\`PlayCounter_*_x64-setup.exe\`)" >> $GITHUB_OUTPUT
+          echo "- **Linux (Debian / Ubuntu):** \`.deb\` package" >> $GITHUB_OUTPUT
+          echo "- **Linux (Arch / CachyOS / Fedora / Universal):** \`.AppImage\`" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
 
       - name: Install Linux Dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
@@ -70,14 +99,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'PlayCounter v__VERSION__'
-          releaseBody: |
-            Automatischer Release-Build von PlayCounter.
-            
-            ### Enthaltene Pakete:
-            - **Windows:** NSIS Setup Installer (`PlayCounter_*_x64-setup.exe`)
-            - **Linux (Debian / Ubuntu):** `.deb` Paket
-            - **Linux (Arch / CachyOS / Fedora / Universal):** `.AppImage`
-            - **In-App Updater:** `latest.json` & Signaturen
+          releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
